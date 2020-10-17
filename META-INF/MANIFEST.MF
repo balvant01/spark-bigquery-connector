@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Specification-Title: spark-bigquery-with-dependencies
+Specification-Version: 0.17.2
+Specification-Vendor: com.google.cloud.spark
+

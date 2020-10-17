@@ -27,8 +27,9 @@ import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.mockito.{ArgumentMatchers, Mock, MockitoAnnotations}
-import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.scalatest.{BeforeAndAfter, FunSuite, Ignore}
 
+@Ignore
 class BigQueryRelationProviderSuite
     extends FunSuite
     with BeforeAndAfter {

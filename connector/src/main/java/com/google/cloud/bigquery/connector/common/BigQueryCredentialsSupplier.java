@@ -43,14 +43,19 @@ public class BigQueryCredentialsSupplier {
     this.credentialsFile = credentialsFile;
     // lazy creation, cache once it's created
     Optional<Credentials> credentialsFromAccessToken =
-        credentialsKey.map(BigQueryCredentialsSupplier::createCredentialsFromAccessToken);
+        accessToken.map(BigQueryCredentialsSupplier::createCredentialsFromAccessToken);
     Optional<Credentials> credentialsFromKey =
         credentialsKey.map(BigQueryCredentialsSupplier::createCredentialsFromKey);
     Optional<Credentials> credentialsFromFile =
         credentialsFile.map(BigQueryCredentialsSupplier::createCredentialsFromFile);
-    this.credentials =
+    Credentials credentials =
         firstPresent(credentialsFromAccessToken, credentialsFromKey, credentialsFromFile)
-            .orElse(createDefaultCredentials());
+            .orElseGet(null);
+    if (credentials != null) {
+      this.credentials = credentials;
+    } else {
+      this.credentials = createDefaultCredentials();
+    }
   }
 
   private static Credentials createCredentialsFromAccessToken(String accessToken) {

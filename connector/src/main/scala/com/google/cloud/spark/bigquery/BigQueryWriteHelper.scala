@@ -15,12 +15,19 @@
  */
 package com.google.cloud.spark.bigquery
 
-import java.io.IOException
+import java.io.{ByteArrayInputStream, FileInputStream, IOException, InputStream}
+import java.nio.charset.Charset
 import java.util.UUID
+import java.util.function.BiFunction
 
+import com.google.api.client.json.jackson2.JacksonFactory
+import com.google.api.client.json.{GenericJson, JsonObjectParser}
+import com.google.api.client.util.Base64
+import com.google.auth.oauth2.{GoogleCredentials, ServiceAccountCredentials}
 import com.google.cloud.bigquery.JobInfo.CreateDisposition.CREATE_NEVER
 import com.google.cloud.bigquery._
 import com.google.cloud.bigquery.connector.common.BigQueryUtil
+import com.google.cloud.hadoop.util.HadoopCredentialConfiguration
 import com.google.cloud.http.BaseHttpServiceException
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path, RemoteIterator}
@@ -28,6 +35,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
 import scala.collection.JavaConverters._
+import scala.util.Random
 
 case class BigQueryWriteHelper(bigQuery: BigQuery,
                                sqlContext: SQLContext,
@@ -37,32 +45,95 @@ case class BigQueryWriteHelper(bigQuery: BigQuery,
                                tableExists: Boolean)
   extends Logging {
 
-  val conf = sqlContext.sparkContext.hadoopConfiguration
+  val conf = {
+    var conf = sqlContext.sparkContext.hadoopConfiguration;
+    val credential = options.createCredentials();
+    val googleCredentials = credential.asInstanceOf[GoogleCredentials]
+    val accessToken = googleCredentials.getAccessToken();
+
+    val gsFsPrefix = "fs.gs";
+    val prefixes = HadoopCredentialConfiguration.getConfigKeyPrefixes(gsFsPrefix);
+
+
+    val serviceKeyFile = HadoopCredentialConfiguration.SERVICE_ACCOUNT_KEYFILE_SUFFIX
+      .withPrefixes(prefixes).get(conf, new BiFunction[String, String, String] {
+      override def apply(t: String, u: String): String = {
+        return conf.get(t, u);
+      }
+    });
+
+    val serviceJsonKeyFile = HadoopCredentialConfiguration.SERVICE_ACCOUNT_JSON_KEYFILE_SUFFIX
+      .withPrefixes(prefixes).get(conf, new BiFunction[String, String, String] {
+      override def apply(t: String, u: String): String = {
+        return conf.get(t, u);
+      }
+    });
+
+    // Assuming only service account is being used for authentication
+    if (serviceKeyFile == null && serviceJsonKeyFile == null) {
+      var serviceAccountCredentials : ServiceAccountCredentials = null;
+      var serviceJsonInputStream: InputStream = null;
+      if (options.getCredentialsKey.isPresent) {
+        serviceJsonInputStream = new ByteArrayInputStream(
+          Base64.decodeBase64(options.getCredentialsKey.get()));
+
+        serviceAccountCredentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(
+          Base64.decodeBase64(options.getCredentialsKey.get())));
+      } else {
+        val serviceCredentialsFile = options.getCredentialsFile.get();
+        serviceJsonInputStream = new FileInputStream(serviceCredentialsFile)
+        serviceAccountCredentials =
+          ServiceAccountCredentials.fromStream(new FileInputStream(serviceCredentialsFile));
+      }
+
+      val parser = new JsonObjectParser(JacksonFactory.getDefaultInstance)
+
+      val serviceJsonContents = parser.parseAndClose(serviceJsonInputStream,
+        Charset.forName("UTF-8"), classOf[GenericJson])
+
+      conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_EMAIL_SUFFIX.getKey,
+        serviceAccountCredentials.getAccount);
+
+      conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_PRIVATE_KEY_ID_SUFFIX.getKey,
+        serviceAccountCredentials.getPrivateKeyId);
+
+      conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_PRIVATE_KEY_SUFFIX.getKey,
+        serviceJsonContents.get("private_key").toString);
+    }
+    conf
+  }
 
   val gcsPath = {
     var needNewPath = true
     var gcsPath: Path = null
     val applicationId = sqlContext.sparkContext.applicationId
 
-    while (needNewPath) {
-      val temporaryGcsBucketOption = BigQueryUtilScala.toOption(options.getTemporaryGcsBucket)
-      val gcsPathOption = temporaryGcsBucketOption match {
-        case Some(bucket) => s"gs://$bucket/.spark-bigquery-${applicationId}-${UUID.randomUUID()}"
-        case None if options.getPersistentGcsBucket.isPresent
-          && options.getPersistentGcsPath.isPresent =>
-          s"gs://${options.getPersistentGcsBucket.get}/${options.getPersistentGcsPath.get}"
-        case None if options.getPersistentGcsBucket.isPresent =>
-          s"gs://${options.getPersistentGcsBucket.get}/.spark-bigquery-${applicationId}-${UUID.randomUUID()}"
-        case _ =>
-          throw new IllegalArgumentException("Temporary or persistent GCS bucket must be informed.")
-      }
-
-      gcsPath = new Path(gcsPathOption)
-      val fs = gcsPath.getFileSystem(conf)
-      needNewPath = fs.exists(gcsPath) // if the path exists for some reason, then retry
+    val temporaryGcsBucketOption = BigQueryUtilScala.toOption(options.getTemporaryGcsBucket)
+    val gcsPathOption = temporaryGcsBucketOption match {
+      case Some(bucket) => s"gs://$bucket/.spark-bigquery-${applicationId}-${UUID.randomUUID()}"
+      case None if options.getPersistentGcsBucket.isPresent
+        && options.getPersistentGcsPath.isPresent =>
+        s"gs://${options.getPersistentGcsBucket.get}/${options.getPersistentGcsPath.get}"
+      case None if options.getPersistentGcsBucket.isPresent =>
+        s"gs://${options.getPersistentGcsBucket.get}/.spark-bigquery-${applicationId}-${UUID.randomUUID()}"
+      case _ =>
+        throw new IllegalArgumentException("Temporary or persistent GCS bucket must be informed.")
     }
+    gcsPath = new Path(gcsPathOption)
 
     gcsPath
+  }
+
+  val bqSchema = {
+    var  bqSchema : Schema = null;
+    if (data != null) {
+      try {
+        bqSchema = SchemaConverters.toBigQuerySchema(data.schema);
+      } catch {
+        case e : Exception => e.printStackTrace()
+      }
+    }
+    bqSchema
   }
 
   def writeDataFrameToBigQuery: Unit = {
@@ -84,7 +155,7 @@ case class BigQueryWriteHelper(bigQuery: BigQuery,
       createTemporaryPathDeleter.map(Runtime.getRuntime.addShutdownHook(_))
 
       val format = options.getIntermediateFormat.getDataSource
-      data.write.format(format).save(gcsPath.toString)
+      data.write.mode("overwrite").format(format).save(gcsPath.toString)
 
       loadDataToBigQuery
       updateMetadataIfNeeded
@@ -107,37 +178,66 @@ case class BigQueryWriteHelper(bigQuery: BigQuery,
     val jobConfigurationBuilder = LoadJobConfiguration.newBuilder(
       options.getTableId, sourceUris, options.getIntermediateFormat.getFormatOptions)
       .setCreateDisposition(JobInfo.CreateDisposition.CREATE_IF_NEEDED)
-      .setWriteDisposition(saveModeToWriteDisposition(saveMode))
-      .setAutodetect(true)
+      .setWriteDisposition(saveModeToWriteDisposition(saveMode));
+
+    if (bqSchema != null) {
+      jobConfigurationBuilder.setAutodetect(false).setSchema(bqSchema);
+    } else {
+      jobConfigurationBuilder.setAutodetect(true)
+    }
 
     if (options.getCreateDisposition.isPresent) {
       jobConfigurationBuilder.setCreateDisposition(options.getCreateDisposition.get)
     }
 
+
     if (options.getPartitionField.isPresent || options.getPartitionType.isPresent) {
-      val timePartitionBuilder = TimePartitioning.newBuilder(
-        TimePartitioning.Type.valueOf(options.getPartitionType.orElse("DAY"))
-      )
+      /*
+      IF partition field is set and partition type is not specified
+      then use time partitioning with partition type DAY
+       */
+      var partitionType = options.getPartitionType.orElse("DAY");
 
-      if (options.getPartitionExpirationMs.isPresent) {
-        timePartitionBuilder.setExpirationMs(options.getPartitionExpirationMs.getAsLong)
+      if (partitionType.equalsIgnoreCase("RANGE"))  {
+        val partitionRangeBuilder = RangePartitioning.Range.newBuilder();
+
+        assert(options.rangePartitionStartValue != null, "Partition start value not specified");
+        assert(options.rangePartitionEndValue != null, "Partition end value not specified");
+        assert(options.rangePartitionInterval != null, "Partition interval value not specified");
+
+        partitionRangeBuilder.setStart(options.rangePartitionStartValue);
+        partitionRangeBuilder.setEnd(options.rangePartitionEndValue)
+        partitionRangeBuilder.setInterval(options.rangePartitionInterval);
+
+        val rangePartitionBuilder = RangePartitioning.newBuilder()
+          .setField(options.partitionField.get())
+          .setRange(partitionRangeBuilder.build());
+
+        jobConfigurationBuilder.setRangePartitioning(rangePartitionBuilder.build());
+      } else {
+        val timePartitionBuilder = TimePartitioning.newBuilder(
+          TimePartitioning.Type.valueOf(partitionType))
+
+        if (options.getPartitionExpirationMs.isPresent) {
+          timePartitionBuilder.setExpirationMs(options.getPartitionExpirationMs.getAsLong)
+        }
+
+        if (options.getPartitionRequireFilter.isPresent) {
+          timePartitionBuilder.setRequirePartitionFilter(options.getPartitionRequireFilter.get)
+        }
+
+        if (options.getPartitionField.isPresent) {
+          timePartitionBuilder.setField(options.getPartitionField.get)
+        }
+
+        jobConfigurationBuilder.setTimePartitioning(timePartitionBuilder.build())
       }
+    }
 
-      if (options.getPartitionRequireFilter.isPresent) {
-        timePartitionBuilder.setRequirePartitionFilter(options.getPartitionRequireFilter.get)
-      }
-
-      if (options.getPartitionField.isPresent) {
-        timePartitionBuilder.setField(options.getPartitionField.get)
-      }
-
-      jobConfigurationBuilder.setTimePartitioning(timePartitionBuilder.build())
-
-      if (options.getClusteredFields.isPresent) {
-        val clustering =
-          Clustering.newBuilder().setFields(options.getClusteredFields.get.toList.asJava).build();
-        jobConfigurationBuilder.setClustering(clustering)
-      }
+    if (options.getClusteredFields.isPresent) {
+      val clustering =
+        Clustering.newBuilder().setFields(options.getClusteredFields.get.toList.asJava).build();
+      jobConfigurationBuilder.setClustering(clustering)
     }
 
     if (!options.getLoadSchemaUpdateOptions.isEmpty) {

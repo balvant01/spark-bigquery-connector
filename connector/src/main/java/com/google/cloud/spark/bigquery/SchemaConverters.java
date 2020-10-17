@@ -15,16 +15,14 @@
  */
 package com.google.cloud.spark.bigquery;
 
-import avro.shaded.com.google.common.base.Preconditions;
+import com.google.common.base.Preconditions;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.Schema;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
-import org.apache.spark.ml.linalg.SQLDataTypes;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
@@ -322,7 +320,7 @@ public class SchemaConverters {
     if (elementType instanceof TimestampType) {
       // return LegacySQLTypeName.TIMESTAMP; FIXME: Restore this correct conversion when the Vortex
       // team adds microsecond support to their backend
-      return LegacySQLTypeName.INTEGER;
+      return LegacySQLTypeName.TIMESTAMP;
     }
     if (elementType instanceof DateType) {
       return LegacySQLTypeName.DATE;

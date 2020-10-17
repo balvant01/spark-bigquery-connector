@@ -89,6 +89,9 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
   Long partitionExpirationMs = null;
   com.google.common.base.Optional<Boolean> partitionRequireFilter = empty();
   com.google.common.base.Optional<String> partitionType = empty();
+  Long rangePartitionStartValue = null;
+  Long rangePartitionEndValue = null;
+  Long rangePartitionInterval = null;
   com.google.common.base.Optional<String[]> clusteredFields = empty();
   com.google.common.base.Optional<JobInfo.CreateDisposition> createDisposition = empty();
   boolean optimizedEmptyProjection = true;
@@ -187,6 +190,13 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
     config.partitionRequireFilter =
         getOption(options, "partitionRequireFilter").transform(Boolean::valueOf);
     config.partitionType = getOption(options, "partitionType");
+    config.rangePartitionStartValue =
+        getOption(options, "rangePartitionStartValue").transform(Long::valueOf).orNull();
+    config.rangePartitionEndValue =
+        getOption(options, "rangePartitionEndValue").transform(Long::valueOf).orNull();
+    config.rangePartitionInterval =
+        getOption(options, "rangePartitionInterval").transform(Long::valueOf).orNull();
+
     config.clusteredFields = getOption(options, "clusteredFields").transform(s -> s.split(","));
 
     config.createDisposition =
@@ -453,7 +463,9 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
     AVRO("avro", FormatOptions.avro()),
     AVRO_2_3("com.databricks.spark.avro", FormatOptions.avro()),
     ORC("orc", FormatOptions.orc()),
-    PARQUET("parquet", FormatOptions.parquet());
+    PARQUET("parquet", FormatOptions.parquet()),
+    CSV("csv", FormatOptions.csv()),
+    JSON("json", FormatOptions.json());
 
     private static Set<String> PERMITTED_DATA_SOURCES =
         Stream.of(values())

@@ -83,7 +83,7 @@ lazy val connector = (project in file("connector"))
       "com.google.inject" % "guice" % "4.2.3",
 
       // Keep com.google.cloud dependencies in sync
-      "com.google.cloud" % "google-cloud-bigquery" % "1.116.8",
+      "com.google.cloud" % "google-cloud-bigquery" % "1.119.0",
       "com.google.cloud" % "google-cloud-bigquerystorage" % "1.3.1"
         exclude("io.grpc", "grpc-netty-shaded"),
       // Keep in sync with com.google.cloud
@@ -102,14 +102,19 @@ lazy val connector = (project in file("connector"))
 
       // runtime
       // scalastyle:off
-      "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.0.0" % "runtime" classifier("shaded")
-        exclude("com.google.cloud.bigdataoss", "util-hadoop"),
+      "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.1.5",
+//        exclude("com.google.cloud.bigdataoss", "util-hadoop"),
+//        exclude("com.google.cloud.bigdataoss", "com.google.flogger"),
       // scalastyle:on
       // test
 
       "org.apache.spark" %% "spark-avro" % sparkVersion % "test"
-      ))
+//      "com.google.cloud.bigdataoss" % "util-hadoop" % "hadoop2-2.1.5" % "provided"
+//      exclude("com.google.flogger", "flogger-system-backend")
+//      "com.google.flogger" % "flogger-system-backend" % "0.5.1"
+    ))
       .map(_.excludeAll(excludedOrgs.map(ExclusionRule(_)): _*))
+
   )
 
 lazy val fatJar = project
@@ -124,6 +129,7 @@ lazy val fatJar = project
       ).map(_.inAll),
 
     assemblyMergeStrategy in assembly := {
+      case x if x.contains("system/DefaultPlatform.class") => MergeStrategy.first
       case x if x.endsWith("/public-suffix-list.txt") => MergeStrategy.filterDistinctLines
       case "module-info.class" => MergeStrategy.discard
       case PathList(ps@_*) if ps.last.endsWith(".properties") => MergeStrategy.filterDistinctLines
