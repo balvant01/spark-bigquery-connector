@@ -35,7 +35,6 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
 import scala.collection.JavaConverters._
-import scala.util.Random
 
 case class BigQueryWriteHelper(bigQuery: BigQuery,
                                sqlContext: SQLContext,
@@ -79,26 +78,28 @@ case class BigQueryWriteHelper(bigQuery: BigQuery,
 
         serviceAccountCredentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(
           Base64.decodeBase64(options.getCredentialsKey.get())));
-      } else {
+      } else if (options.getCredentialsFile.isPresent) {
         val serviceCredentialsFile = options.getCredentialsFile.get();
         serviceJsonInputStream = new FileInputStream(serviceCredentialsFile)
         serviceAccountCredentials =
           ServiceAccountCredentials.fromStream(new FileInputStream(serviceCredentialsFile));
       }
 
-      val parser = new JsonObjectParser(JacksonFactory.getDefaultInstance)
+      if (serviceJsonInputStream != null) {
+        val parser = new JsonObjectParser(JacksonFactory.getDefaultInstance)
 
-      val serviceJsonContents = parser.parseAndClose(serviceJsonInputStream,
-        Charset.forName("UTF-8"), classOf[GenericJson])
+        val serviceJsonContents = parser.parseAndClose(serviceJsonInputStream,
+          Charset.forName("UTF-8"), classOf[GenericJson])
 
-      conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_EMAIL_SUFFIX.getKey,
-        serviceAccountCredentials.getAccount);
+        conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_EMAIL_SUFFIX.getKey,
+          serviceAccountCredentials.getAccount);
 
-      conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_PRIVATE_KEY_ID_SUFFIX.getKey,
-        serviceAccountCredentials.getPrivateKeyId);
+        conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_PRIVATE_KEY_ID_SUFFIX.getKey,
+          serviceAccountCredentials.getPrivateKeyId);
 
-      conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_PRIVATE_KEY_SUFFIX.getKey,
-        serviceJsonContents.get("private_key").toString);
+        conf.set(gsFsPrefix + HadoopCredentialConfiguration.SERVICE_ACCOUNT_PRIVATE_KEY_SUFFIX.getKey,
+          serviceJsonContents.get("private_key").toString);
+      }
     }
     conf
   }

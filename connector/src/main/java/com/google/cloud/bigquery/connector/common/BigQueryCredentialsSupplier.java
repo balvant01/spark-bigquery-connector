@@ -49,8 +49,7 @@ public class BigQueryCredentialsSupplier {
     Optional<Credentials> credentialsFromFile =
         credentialsFile.map(BigQueryCredentialsSupplier::createCredentialsFromFile);
     Credentials credentials =
-        firstPresent(credentialsFromAccessToken, credentialsFromKey, credentialsFromFile)
-            .orElseGet(null);
+            firstPresent(credentialsFromAccessToken, credentialsFromKey, credentialsFromFile).orElse(null);
     if (credentials != null) {
       this.credentials = credentials;
     } else {

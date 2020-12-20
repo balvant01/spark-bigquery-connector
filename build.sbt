@@ -102,19 +102,14 @@ lazy val connector = (project in file("connector"))
 
       // runtime
       // scalastyle:off
-      "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.1.5",
-//        exclude("com.google.cloud.bigdataoss", "util-hadoop"),
-//        exclude("com.google.cloud.bigdataoss", "com.google.flogger"),
+      "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.1.5" classifier("shaded"),
+       "com.google.cloud.bigdataoss" % "util-hadoop" % "hadoop2-2.1.5",
       // scalastyle:on
       // test
 
       "org.apache.spark" %% "spark-avro" % sparkVersion % "test"
-//      "com.google.cloud.bigdataoss" % "util-hadoop" % "hadoop2-2.1.5" % "provided"
-//      exclude("com.google.flogger", "flogger-system-backend")
-//      "com.google.flogger" % "flogger-system-backend" % "0.5.1"
-    ))
+      ))
       .map(_.excludeAll(excludedOrgs.map(ExclusionRule(_)): _*))
-
   )
 
 lazy val fatJar = project
@@ -129,8 +124,10 @@ lazy val fatJar = project
       ).map(_.inAll),
 
     assemblyMergeStrategy in assembly := {
+      case x if x.contains("org/slf4j") => MergeStrategy.discard
       case x if x.contains("system/DefaultPlatform.class") => MergeStrategy.first
       case x if x.endsWith("/public-suffix-list.txt") => MergeStrategy.filterDistinctLines
+      case x if x.endsWith("META-INF/services/org.apache.hadoop.fs.FileSystem") => MergeStrategy.discard
       case "module-info.class" => MergeStrategy.discard
       case PathList(ps@_*) if ps.last.endsWith(".properties") => MergeStrategy.filterDistinctLines
       case PathList(ps@_*) if ps.last.endsWith(".proto") => MergeStrategy.discard
