@@ -310,8 +310,10 @@ public class SchemaConverters {
           && decimalType.scale() <= BQ_NUMERIC_SCALE) {
         return LegacySQLTypeName.NUMERIC;
       } else {
-        throw new IllegalArgumentException(
-            "Decimal type is too wide to fit in BigQuery Numeric format");
+        // TODO
+        //        throw new IllegalArgumentException(
+        //            "Decimal type is too wide to fit in BigQuery Numeric format");
+        return LegacySQLTypeName.NUMERIC;
       }
     }
     if (elementType instanceof StringType) {

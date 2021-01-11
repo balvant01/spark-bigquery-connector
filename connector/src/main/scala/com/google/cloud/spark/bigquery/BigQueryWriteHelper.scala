@@ -17,6 +17,7 @@ package com.google.cloud.spark.bigquery
 
 import java.io.{ByteArrayInputStream, FileInputStream, IOException, InputStream}
 import java.nio.charset.Charset
+import java.util.Map.Entry
 import java.util.UUID
 import java.util.function.BiFunction
 
@@ -155,8 +156,14 @@ case class BigQueryWriteHelper(bigQuery: BigQuery,
       // based on pmkc's suggestion at https://git.io/JeWRt
       createTemporaryPathDeleter.map(Runtime.getRuntime.addShutdownHook(_))
 
-      val format = options.getIntermediateFormat.getDataSource
-      data.write.mode("overwrite").format(format).save(gcsPath.toString)
+        var confMap: Map[String, String] = Map();
+        val iterator = sqlContext.sparkSession.sparkContext.hadoopConfiguration.iterator();
+        while (iterator.hasNext) {
+          var conf = iterator.next();
+          confMap += conf.getKey -> conf.getValue;
+        }
+        val format = options.getIntermediateFormat.getDataSource
+        data.write.mode("overwrite").format(format).options(confMap).save(gcsPath.toString);
 
       loadDataToBigQuery
       updateMetadataIfNeeded
