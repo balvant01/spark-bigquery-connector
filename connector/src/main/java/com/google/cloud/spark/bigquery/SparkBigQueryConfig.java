@@ -105,7 +105,7 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
   com.google.common.base.Optional<String> partitionField = empty();
   Long partitionExpirationMs = null;
   com.google.common.base.Optional<Boolean> partitionRequireFilter = empty();
-  com.google.common.base.Optional<TimePartitioning.Type> partitionType = empty();
+  com.google.common.base.Optional<String> partitionType = empty();
   com.google.common.base.Optional<String[]> clusteredFields = empty();
   com.google.common.base.Optional<JobInfo.CreateDisposition> createDisposition = empty();
   boolean optimizedEmptyProjection = true;
@@ -116,6 +116,9 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
   private com.google.common.base.Optional<String> encodedCreateReadSessionRequest = empty();
   private com.google.common.base.Optional<String> storageReadEndpoint = empty();
   private int numBackgroundThreadsPerStream = 0;
+  Long rangePartitionStartValue = null;
+  Long rangePartitionEndValue = null;
+  Long rangePartitionInterval = null;
 
   @VisibleForTesting
   SparkBigQueryConfig() {
@@ -169,11 +172,15 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
             com.google.common.base.Optional.fromNullable(
                     hadoopConfiguration.get(GCS_CONFIG_PROJECT_ID_PROPERTY))
                 .toJavaUtil());
-    config.partitionType =
-        getOption(options, "partitionType").transform(TimePartitioning.Type::valueOf);
+    config.partitionType = getOption(options, "partitionType");
+    config.rangePartitionStartValue =
+        getOption(options, "rangePartitionStartValue").transform(Long::valueOf).orNull();
+    config.rangePartitionEndValue =
+        getOption(options, "rangePartitionEndValue").transform(Long::valueOf).orNull();
+    config.rangePartitionInterval =
+        getOption(options, "rangePartitionInterval").transform(Long::valueOf).orNull();
+
     Optional<String> datePartitionParam = getOption(options, DATE_PARTITION_PARAM).toJavaUtil();
-    datePartitionParam.ifPresent(
-        date -> validateDateFormat(date, config.getPartitionTypeOrDefault(), DATE_PARTITION_PARAM));
     // checking for query
     if (tableParam.isPresent()) {
       String tableParamStr = tableParam.get().trim().replaceAll("\\s+", " ");
@@ -504,12 +511,8 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
     return partitionRequireFilter.toJavaUtil();
   }
 
-  public Optional<TimePartitioning.Type> getPartitionType() {
+  public Optional<String> getPartitionType() {
     return partitionType.toJavaUtil();
-  }
-
-  public TimePartitioning.Type getPartitionTypeOrDefault() {
-    return partitionType.or(TimePartitioning.Type.DAY);
   }
 
   public Optional<ImmutableList<String>> getClusteredFields() {
@@ -612,7 +615,9 @@ public class SparkBigQueryConfig implements BigQueryConfig, Serializable {
     AVRO("avro", FormatOptions.avro()),
     AVRO_2_3("com.databricks.spark.avro", FormatOptions.avro()),
     ORC("orc", FormatOptions.orc()),
-    PARQUET("parquet", FormatOptions.parquet());
+    PARQUET("parquet", FormatOptions.parquet()),
+    CSV("csv", FormatOptions.csv()),
+    JSON("json", FormatOptions.json());
 
     private static Set<String> PERMITTED_DATA_SOURCES =
         Stream.of(values())

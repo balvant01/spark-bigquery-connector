@@ -177,12 +177,6 @@ public class BigQueryIndirectDataSourceWriter implements DataSourceWriter {
     config.getCreateDisposition().ifPresent(jobConfiguration::setCreateDisposition);
 
     if (config.getPartitionField().isPresent() || config.getPartitionType().isPresent()) {
-      TimePartitioning.Builder timePartitionBuilder =
-          TimePartitioning.newBuilder(config.getPartitionTypeOrDefault());
-      config.getPartitionExpirationMs().ifPresent(timePartitionBuilder::setExpirationMs);
-      config.getPartitionRequireFilter().ifPresent(timePartitionBuilder::setRequirePartitionFilter);
-      config.getPartitionField().ifPresent(timePartitionBuilder::setField);
-      jobConfiguration.setTimePartitioning(timePartitionBuilder.build());
       config
           .getClusteredFields()
           .ifPresent(

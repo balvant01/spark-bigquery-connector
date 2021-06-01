@@ -25,7 +25,7 @@ lazy val nettyTcnativeVersion = "2.0.34.Final"
 lazy val commonSettings = Seq(
   organization := "com.google.cloud.spark",
   version := "0.20.1-SNAPSHOT",
-  scalaVersion := scala211Version,
+  scalaVersion := scala212Version,
   crossScalaVersions := Seq(scala211Version, scala212Version)
 )
 
@@ -126,8 +126,8 @@ lazy val connector = (project in file("connector"))
 
       // runtime
       // scalastyle:off
-      "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.0.0" % "runtime" classifier("shaded")
-        exclude("com.google.cloud.bigdataoss", "util-hadoop"),
+      "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.1.5" classifier("shaded"),
+      "com.google.cloud.bigdataoss" % "util-hadoop" % "hadoop2-2.1.5",
       // scalastyle:on
       // test
       "org.apache.spark" %% "spark-avro" % sparkVersion % "test"
@@ -149,7 +149,10 @@ lazy val fatJar = project
       ).map(_.inAll),
 
     assemblyMergeStrategy in assembly := {
+      case x if x.contains("org/slf4j") => MergeStrategy.discard
+      case x if x.contains("system/DefaultPlatform.class") => MergeStrategy.first
       case x if x.endsWith("/public-suffix-list.txt") => MergeStrategy.filterDistinctLines
+      case x if x.endsWith("META-INF/services/org.apache.hadoop.fs.FileSystem") => MergeStrategy.discard
       case "module-info.class" => MergeStrategy.discard
       case PathList(ps@_*) if ps.last.endsWith(".properties") => MergeStrategy.filterDistinctLines
       case PathList(ps@_*) if ps.last.endsWith(".proto") => MergeStrategy.discard
