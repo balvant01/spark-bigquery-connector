@@ -25,7 +25,7 @@ lazy val nettyTcnativeVersion = "2.0.29.Final"
 lazy val commonSettings = Seq(
   organization := "com.google.cloud.spark",
   version := "0.17.3-SNAPSHOT",
-  scalaVersion := scala211Version,
+  scalaVersion := scala212Version,
   crossScalaVersions := Seq(scala211Version, scala212Version)
 )
 
@@ -170,7 +170,7 @@ lazy val published = project
 
   )
 
-lazy val myPackage = "com.google.cloud.spark.bigquery"
+lazy val myPackage = "io.infoworks.spark.bigquery"
 lazy val relocationPrefix = s"$myPackage.repackaged"
 
 // Exclude dependencies already on Spark's Classpath
