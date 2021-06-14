@@ -163,6 +163,7 @@ case class BigQueryWriteHelper(bigQuery: BigQuery,
           confMap += conf.getKey -> conf.getValue;
         }
         val format = options.getIntermediateFormat.getDataSource
+        var fs = gcsPath.getFileSystem(sqlContext.sparkSession.sparkContext.hadoopConfiguration)
         data.write.mode("overwrite").format(format).options(confMap).save(gcsPath.toString);
 
       loadDataToBigQuery

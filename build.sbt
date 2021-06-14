@@ -170,7 +170,7 @@ lazy val published = project
 
   )
 
-lazy val myPackage = "com.google.cloud.spark.bigquery"
+lazy val myPackage = "io.infoworks.spark.bigquery"
 lazy val relocationPrefix = s"$myPackage.repackaged"
 
 // Exclude dependencies already on Spark's Classpath
