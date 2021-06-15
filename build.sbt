@@ -211,7 +211,6 @@ lazy val renamed = Seq(
   "org.tukaani.xz",
   "org.xerial.snappy")
 lazy val notRenamed = Seq(myPackage)
-
 // Default IntegrationTest config uses separate test directory, build files
 lazy val ITest = config("it") extend Test
 // Run scalastyle automatically
