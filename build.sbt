@@ -210,7 +210,7 @@ lazy val renamed = Seq(
   "org.threeten",
   "org.tukaani.xz",
   "org.xerial.snappy")
-lazy val notRenamed = Seq(myPackage)
+lazy val notRenamed = Seq("com.google.cloud.spark.bigquery")
 
 // Default IntegrationTest config uses separate test directory, build files
 lazy val ITest = config("it") extend Test
