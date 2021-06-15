@@ -1,1 +1,1 @@
-com.google.cloud.spark.bigquery.BigQueryRelationProvider
+io.infoworks.spark.bigquery.repackaged.com.google.cloud.spark.bigquery.BigQueryRelationProvider
